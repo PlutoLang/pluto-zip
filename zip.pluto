@@ -1,0 +1,102 @@
+-- Based on https://github.com/calamity-inc/Soup/blob/senpai/soup/ZipReader.cpp
+
+local crypto = require "pluto:crypto"
+
+$alias ZIP_FILE_COMMON_MEMBERS = min_extract_version, bitflag, compression_method, last_mod_time, last_mod_date, uncompressed_data_crc32, compressed_size, uncompressed_size -- I2I2I2I2I2I4I4I4
+$alias ZIP_FILE_INT_MEMBERS = version_made_by, ZIP_FILE_COMMON_MEMBERS, name_len, extra_len, comment_len, disk, internal_attributes, external_attributes, disk_offset
+$alias PACKINTAB(name) = name = name
+
+local function read_local_file_header(zip, file_offset)
+	local magic, i = ">I4":unpack(zip, file_offset)
+	if magic == 0x504B0304 then
+		local ZIP_FILE_COMMON_MEMBERS, name_len, extra_len
+		ZIP_FILE_COMMON_MEMBERS, name_len, extra_len, i = "<I2I2I2I2I2I4I4I4I2I2":unpack(zip, i)
+		local name = zip:sub(i, i + name_len - 1) i += name_len
+		i += extra_len
+		return name, {
+			PACKINTAB(compression_method),
+			PACKINTAB(uncompressed_data_crc32),
+			PACKINTAB(compressed_size),
+			PACKINTAB(uncompressed_size),
+			offset = file_offset,
+		}, i
+	end
+end
+
+export function list(zip)
+	-- Try to locate the "end of central directory" via the magic 0x504B0506
+	local i = #zip - 21
+	while i >= 1 do
+		local magic = ">I4":unpack(zip, i)
+		if magic == 0x504B0506 then
+			i += 4
+			local _this_disk_number, _central_directory_disk, _central_directories_on_this_disk, _central_directories_in_total, _central_directory_size, central_directory_offset, _comment = "<I2I2I2I2I4I4s2":unpack(zip, i)
+			i = 1 + central_directory_offset
+			local t = {}
+			while true do
+				magic, i = ">I4":unpack(zip, i)
+				if magic ~= 0x504B0102 then
+					break
+				end
+				local ZIP_FILE_INT_MEMBERS
+				ZIP_FILE_INT_MEMBERS, i = "<I2I2I2I2I2I2I4I4I4I2I2I2I2I2I4I4":unpack(zip, i)
+				local name = zip:sub(i, i + name_len - 1) i += name_len
+				i += extra_len
+				i += comment_len
+				t[name] = {
+					PACKINTAB(compression_method),
+					PACKINTAB(uncompressed_data_crc32),
+					PACKINTAB(compressed_size),
+					PACKINTAB(uncompressed_size),
+					offset = 1 + disk_offset,
+				}
+			end
+			return t
+		end
+		i -= 1
+	end
+	-- Could not locate end of central directory, try to build a file list from local file headers.
+	i = 1
+	local t = {}
+	while true do
+		local name, data
+		name, data, i = read_local_file_header(zip, i)
+		if not name then
+			break
+		end
+		t[name] = data
+	end
+	return t
+end
+
+export function readex(zip, offset, compressed_size)
+	local name, data, i = read_local_file_header(zip, offset)
+	assert(name, "Invalid offset")
+	switch data.compression_method do
+		case 0: -- Store
+		return zip:sub(i, i + data.compressed_size - 1)
+
+		case 8: do
+			-- Deflate
+			if data.compressed_size == 0 and data.uncompressed_size ~= 0 then
+				assert(compressed_size ~= 0, "Incomplete zip archive")
+				data.compressed_size = compressed_size
+			end
+			local cont = crypto.decompress(zip:sub(i, i + data.compressed_size - 1), data.uncompressed_size)
+			if #cont ~= data.uncompressed_size then
+				error(#cont == 0 ? "Decompression failed" : "Size after decompression doesn't match uncompressed_size")
+			end
+			return cont
+		end
+
+		default:
+		error("Unsupported compression method")
+	end
+end
+
+export function read(zip, name)
+	if f := list(zip)[name] then
+		return readex(zip, f.offset, f.compressed_size)
+	end
+	error(name.." not found in zip")
+end
