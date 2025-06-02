@@ -25,35 +25,31 @@ end
 
 export function list(zip)
 	-- Try to locate the "end of central directory" via the magic 0x504B0506
-	local i = #zip - 21
-	while i >= 1 do
-		local magic = ">I4":unpack(zip, i)
-		if magic == 0x504B0506 then
-			i += 4
-			local _this_disk_number, _central_directory_disk, _central_directories_on_this_disk, _central_directories_in_total, _central_directory_size, central_directory_offset, _comment = "<I2I2I2I2I4I4s2":unpack(zip, i)
-			i = 1 + central_directory_offset
-			local t = {}
-			while true do
-				magic, i = ">I4":unpack(zip, i)
-				if magic ~= 0x504B0102 then
-					break
-				end
-				local ZIP_FILE_INT_MEMBERS
-				ZIP_FILE_INT_MEMBERS, i = "<I2I2I2I2I2I2I4I4I4I2I2I2I2I2I4I4":unpack(zip, i)
-				local name = zip:sub(i, i + name_len - 1) i += name_len
-				i += extra_len
-				i += comment_len
-				t[name] = {
-					PACKINTAB(compression_method),
-					PACKINTAB(uncompressed_data_crc32),
-					PACKINTAB(compressed_size),
-					PACKINTAB(uncompressed_size),
-					offset = 1 + disk_offset,
-				}
+	local i = zip:rfind("\x50\x4B\x05\x06", #zip - 21)
+	if i then
+		i += 4
+		local _this_disk_number, _central_directory_disk, _central_directories_on_this_disk, _central_directories_in_total, _central_directory_size, central_directory_offset, _comment = "<I2I2I2I2I4I4s2":unpack(zip, i)
+		i = 1 + central_directory_offset
+		local t = {}
+		while true do
+			magic, i = ">I4":unpack(zip, i)
+			if magic ~= 0x504B0102 then
+				break
 			end
-			return t
+			local ZIP_FILE_INT_MEMBERS
+			ZIP_FILE_INT_MEMBERS, i = "<I2I2I2I2I2I2I4I4I4I2I2I2I2I2I4I4":unpack(zip, i)
+			local name = zip:sub(i, i + name_len - 1) i += name_len
+			i += extra_len
+			i += comment_len
+			t[name] = {
+				PACKINTAB(compression_method),
+				PACKINTAB(uncompressed_data_crc32),
+				PACKINTAB(compressed_size),
+				PACKINTAB(uncompressed_size),
+				offset = 1 + disk_offset,
+			}
 		end
-		i -= 1
+		return t
 	end
 	-- Could not locate end of central directory, try to build a file list from local file headers.
 	i = 1
