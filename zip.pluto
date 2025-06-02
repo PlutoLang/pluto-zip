@@ -100,3 +100,24 @@ export function read(zip, name)
 	end
 	error(name.." not found in zip")
 end
+
+export function create(files)
+	local data = ""
+	local offsets = {}
+	for path, cont in files do
+		offsets[path] = #data
+		data ..= "\x50\x4B\x03\x04"
+		data ..= "<I2I2I2I2I2I4I4I4I2I2":pack(0, 0, 0, 0, 0, crypto.crc32(cont), #cont, #cont, #path, 0)
+		data ..= path
+		data ..= cont
+	end
+	local central_directory_offset = #data
+	for path, cont in files do
+		data ..= "\x50\x4B\x01\x02"
+		data ..= "<I2I2I2I2I2I2I4I4I4I2I2I2I2I2I4I4":pack(0, 0, 0, 0, 0, 0, crypto.crc32(cont), #cont, #cont, #path, 0, 0, 0, 0, 0, offsets[path])
+		data ..= path
+	end
+	data ..= "\x50\x4B\x05\x06"
+	data ..= "<I2I2I2I2I4I4s2":pack(0, 0, 1, 1, 0, central_directory_offset, "")
+	return data
+end
