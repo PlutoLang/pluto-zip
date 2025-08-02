@@ -65,7 +65,7 @@ export function list(zip)
 	return t
 end
 
-export function readex(zip, offset, compressed_size)
+export function readex(zip, offset, compressed_size, uncompressed_size)
 	local name, data, i = read_local_file_header(zip, offset)
 	assert(name, "Invalid offset")
 	switch data.compression_method do
@@ -74,6 +74,12 @@ export function readex(zip, offset, compressed_size)
 
 		case 8: do
 			-- Deflate
+
+			-- Use uncompressed_size from central directory if we have it
+			if uncompressed_size then
+				data.uncompressed_size = uncompressed_size
+			end
+
 			if data.compressed_size == 0 and data.uncompressed_size ~= 0 then
 				assert(compressed_size ~= 0, "Incomplete zip archive")
 				data.compressed_size = compressed_size
@@ -92,7 +98,7 @@ end
 
 export function read(zip, name)
 	if f := list(zip)[name] then
-		return readex(zip, f.offset, f.compressed_size)
+		return readex(zip, f.offset, f.compressed_size, f.uncompressed_size)
 	end
 	error(name.." not found in zip")
 end
