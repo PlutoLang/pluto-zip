@@ -3,7 +3,7 @@
 local crypto = require "pluto:crypto"
 
 $alias ZIP_FILE_COMMON_MEMBERS = min_extract_version, bitflag, compression_method, last_mod_time, last_mod_date, uncompressed_data_crc32, compressed_size, uncompressed_size -- I2I2I2I2I2I4I4I4
-$alias ZIP_FILE_INT_MEMBERS = version_made_by, ZIP_FILE_COMMON_MEMBERS, name_len, extra_len, comment_len, disk, internal_attributes, external_attributes, disk_offset
+$alias ZIP_FILE_INT_MEMBERS = version_made_by, min_extract_version, bitflag, compression_method, last_mod_time, last_mod_date, uncompressed_data_crc32, compressed_size, uncompressed_size, name_len, extra_len, comment_len, disk, internal_attributes, external_attributes, disk_offset
 $alias PACKINTAB(name) = name = name
 
 local function read_local_file_header(zip, file_offset)
@@ -25,7 +25,7 @@ end
 
 export function list(zip)
 	-- Try to locate the "end of central directory" via the magic 0x504B0506
-	local i = zip:rfind("\x50\x4B\x05\x06", #zip - 21)
+	local i = zip:rfind("\x50\x4B\x05\x06", #zip - 20)
 	if i then
 		i += 4
 		local _this_disk_number, _central_directory_disk, _central_directories_on_this_disk, _central_directories_in_total, _central_directory_size, central_directory_offset, _comment = "<I2I2I2I2I4I4s2":unpack(zip, i)
