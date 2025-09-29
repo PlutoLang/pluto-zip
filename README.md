@@ -7,7 +7,7 @@ A zip library for Pluto.
 This library exports the following functions:
 - `list(bin)`
 - `read(bin, path)`
-- `readex(bin, offset, compressed_size)`
+- `readex(bin, offset, compressed_size, uncompressed_size)`
 - `create(files)` — note that no compression will be performed
 
 ### Example: Creating a zip
