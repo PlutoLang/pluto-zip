@@ -84,7 +84,7 @@ export function readex(zip, offset, compressed_size, uncompressed_size)
 				assert(compressed_size ~= 0, "Incomplete zip archive")
 				data.compressed_size = compressed_size
 			end
-			local cont = crypto.decompress(zip:sub(i, i + data.compressed_size - 1), data.uncompressed_size)
+			local cont = crypto.decompress(zip, i, data.uncompressed_size)
 			if #cont ~= data.uncompressed_size then
 				error(#cont == 0 ? "Decompression failed" : "Size after decompression doesn't match uncompressed_size")
 			end
